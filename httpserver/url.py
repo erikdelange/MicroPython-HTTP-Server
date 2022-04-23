@@ -33,8 +33,8 @@ def query(request_line):
     Example: request b"GET /page?key1=0.07&key2=0.03&key3=0.13 HTTP/1.1\r\n"
     yields dictionary {'key1': '0.07', 'key2': '0.03', 'key3': '0.13'}.
 
-    :param bytes request_line: the complete HTTP request line.
-    :return dict: dictionary with zero or more entries.
+    :param bytes request_line: the complete HTTP request line
+    :return dict: dictionary with zero or more entries
     """
     d = dict()
     p = request_line.find(b"?")  # only look in the query part of a request URL
