@@ -2,6 +2,8 @@
 #
 # Usage:
 #
+#   import uasyncio as asyncio
+#
 #   from httpserver import sendfile, Server
 #
 #   app = Server()
@@ -15,7 +17,9 @@
 #       await writer.drain()
 #       await sendfile(writer, "index.html")
 #
-#   asyncio.run(app.start())
+#   loop = asyncio.get_event_loop()
+#   loop.create_task(app.start())
+#   loop.run_forever()
 #
 # Handlers for the (method, path) combinations must be decorated with @route,
 # and declared before the server is started. Every handler receives a stream
@@ -46,6 +50,7 @@ class Server:
         self.port = port
         self.backlog = backlog
         self.timeout = timeout
+        self._server = None
         self._routes = dict()  # stores link between (method, path) and function to execute
 
     def route(self, method="GET", path="/"):
@@ -121,10 +126,12 @@ class Server:
     async def start(self):
         print(f'HTTP server started on {self.host}:{self.port}')
         self._server = await asyncio.start_server(self._handle_request, self.host, self.port, self.backlog)
-        while True:
-            await asyncio.sleep(100)
 
     async def stop(self):
-        self._server.close()
-        await self._server.wait_closed()
-        print("HTTP server stopped")
+        if self._server is not None:
+            self._server.close()
+            await self._server.wait_closed()
+            self._server = None
+            print("HTTP server stopped")
+        else:
+            print("HTTP server was not started")
