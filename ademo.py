@@ -1,8 +1,8 @@
-import sys
 import time
+
 import uasyncio as asyncio
 
-from ahttpserver import sendfile, Server
+from ahttpserver import Server, sendfile
 
 app = Server()
 
@@ -18,7 +18,7 @@ async def root(reader, writer, request):
     try:
         print(1/0)
     except Exception as e:
-        print("exception in function root():", e)  # exception handled locally
+        print("exception in function root():", e)  # exception handled locally, does not stop server
 
 
 # @app.route("GET", "/")  # if uncommented raises route already declared exception
@@ -45,11 +45,12 @@ async def get_time(reader, writer, request):
     await writer.drain()
     t = time.localtime()
     writer.write(f"{t[2]:02d}-{t[1]:02d}-{t[0]:04d} {t[3]:02d}:{t[4]:02d}:{t[5]:02d}")
-    print(1/0)  # will be caught by global exception handler
+    print(1/0)  # will be caught by global exception handler, stops server (and the rest)
 
 
 @app.route("GET", "/api/stop")
 async def stop(reader, writer, request):
+    """ Force asyncio scheduler to stop, just like ctrl-c on the repl """
     writer.write(b"HTTP/1.1 200 OK\r\n")
     writer.write(b"Connection: close\r\n")
     writer.write(b"\r\n")
@@ -58,7 +59,7 @@ async def stop(reader, writer, request):
 
 
 async def hello():
-    """ For demo purposes show system is still alive """
+    """ Show system is still alive """
     count = 0
     while True:
         print("hello", count)
@@ -66,22 +67,22 @@ async def hello():
         await asyncio.sleep(60)
 
 
-def set_global_exception_handler():
-    def handle_exception(loop, context):
-        # uncaught exceptions raised in route handlers end up here
-        print("global exception handler:", context)
-        sys.print_exception(context["exception"])
-
-    loop = asyncio.get_event_loop()
-    loop.set_exception_handler(handle_exception)
-
-
 if __name__ == "__main__":
     try:
-        set_global_exception_handler()
+        def handle_exception(loop, context):
+            # uncaught exceptions end up here
+            import sys
+            print("global exception handler:", context)
+            sys.print_exception(context["exception"])
+            sys.exit()
 
-        asyncio.create_task(hello())
-        asyncio.run(app.start())  # must be last, does not return
+        loop = asyncio.get_event_loop()
+        loop.set_exception_handler(handle_exception)
+
+        loop.create_task(hello())
+        loop.create_task(app.start())
+
+        loop.run_forever()
     except KeyboardInterrupt:
         pass
     finally:
