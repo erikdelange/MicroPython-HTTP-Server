@@ -9,7 +9,8 @@
 # Copyright 2021 (c) Erik de Lange
 # Released under MIT license
 
-CRLF = b"\r\n"  # empty line: end of header, start of optional payload
+
+CRLF = b"\r\n"
 
 
 class StatusLine:
@@ -28,3 +29,7 @@ class MimeType:
     TEXT_EVENT_STREAM = b"Content-Type: text/event-stream\r\n"
     IMAGE_X_ICON = b"Content-Type: image/x-icon\r\n"
     APPLICATION_JSON = b"Content-Type: application/json\r\n"
+
+
+class CacheControl:
+    NO_CACHE = b"Cache-Control: no-cache\r\n"

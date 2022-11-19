@@ -22,7 +22,7 @@
 #   loop.run_forever()
 #
 # Handlers for the (method, path) combinations must be decorated with @route,
-# and declared before the server is started. Every handler receives a stream
+# and declared before the server is started. Every handler receives a stream-
 # reader and writer and a dict with all the details from the request (see
 # url.py for exact content). The handler must construct and send a correct
 # HTTP response. To avoid typos use response components from response.py.
@@ -35,8 +35,9 @@
 
 import errno
 
-import ahttpserver.url as url
 import uasyncio as asyncio
+
+import ahttpserver.url as url
 
 
 class HTTPServerError(Exception):
@@ -135,3 +136,52 @@ class Server:
             print("HTTP server stopped")
         else:
             print("HTTP server was not started")
+
+
+class EventSource:
+    """ Helper class for sending server sent events to a client """
+
+    @classmethod
+    async def upgrade(cls, reader, writer):
+        """ Transforms the current connection into an eventsource """
+        writer.write(b"HTTP/1.1 200 OK\r\n")
+        writer.write(b"Connection: keep-alive\r\n")
+        writer.write(b"Content-Type: text/event-stream\r\n")
+        writer.write(b"Cache-Control: no-cache\r\n")
+        writer.write(b"\r\n")
+        await writer.drain()
+        return cls(reader, writer)
+
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+
+    async def retry(self, milliseconds):
+        """ Set the client retry interval
+
+        :param int milliseconds: retry interval
+        """
+        writer = self.writer
+        writer.write(f"retry: {milliseconds}")
+        writer.write(b"\r\n")
+        writer.write(b"\r\n")
+        await writer.drain()
+
+    async def send(self, data=":", id=None, event=None):
+        """ Send event to client following the event stream format
+
+        :param str data: event data to send to client. mandatory
+        :param id int: optional event id
+        :param event str: optional event type, used for dispatching at client
+        """
+        writer = self.writer
+        if id is not None:
+            writer.write(f"id: {id}")
+            writer.write(b"\r\n")
+        if event is not None:
+            writer.write(f"event: {event}")
+            writer.write(b"\r\n")
+        writer.write(f"data: {data}")
+        writer.write(b"\r\n")
+        writer.write(b"\r\n")
+        await writer.drain()

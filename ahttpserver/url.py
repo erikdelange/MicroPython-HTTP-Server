@@ -77,10 +77,10 @@ def request(line):
     d = {key: value for key, value in zip(["method", "url", "version"], line.decode("utf-8").split())}
 
     if len(d) != 3:
-        raise InvalidRequest("Expected 3 elements in {}".format(line))
+        raise InvalidRequest(f"Expected 3 elements in {line}")
 
     if d["method"] not in ["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE"]:
-        raise InvalidRequest("Invalid method {} in {}".format(d['method'], line))
+        raise InvalidRequest(f"Invalid method {d['method']} in {line}")
 
     d["parameters"] = query(line)
 

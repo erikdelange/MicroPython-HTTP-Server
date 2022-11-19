@@ -55,7 +55,7 @@ async def stop(reader, writer, request):
     writer.write(b"Connection: close\r\n")
     writer.write(b"\r\n")
     await writer.drain()
-    raise(KeyboardInterrupt)
+    raise (KeyboardInterrupt)
 
 
 async def hello():
