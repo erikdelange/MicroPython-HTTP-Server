@@ -44,16 +44,16 @@ httpserver
 ahttpserver
 - Offers assistance for using server-sent event via class *EventSource*.
 ``` Python
-from ahttpserver import EventSource
+from ahttpserver.sse import EventSource
 
-@app.route("GET", "/api/event")
-async def api_event(reader, writer, request):
-    """ Say hello every 5 seconds """
+@app.route("GET", "/api/greeting")
+async def api_greeting(reader, writer, request):
+    # Say hello every 5 seconds
     eventsource = await EventSource.upgrade(reader, writer)
     while True:
+        asyncio.sleep(5)
         try:
-            await eventsource.send(data="hello")
-            await asyncio.sleep(5)
+            await eventsource.send(event="greeting", data="hello")
         except Exception as e:  # catch (a.o.) ECONNRESET when the client has disappeared
-            break  # close connection
+            break  # close connection#
 ```

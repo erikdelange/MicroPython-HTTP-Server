@@ -3,4 +3,4 @@
 
 from .response import CRLF, MimeType, ResponseHeader, StatusLine, CacheControl
 from .sendfile import sendfile
-from .server import Server, EventSource
+from .server import Server
