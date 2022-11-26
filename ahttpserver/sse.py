@@ -9,7 +9,7 @@
 #   @app.route("GET", "/api/greeting")
 #   async def api_greeting(reader, writer, request):
 #       # Say hello every 5 seconds
-#       eventsource = await EventSource.upgrade(reader, writer)
+#       eventsource = await EventSource.init(reader, writer)
 #       while True:
 #           asyncio.sleep(5)
 #           try:
@@ -24,8 +24,11 @@ class EventSource:
     """ Helper class for sending server sent events to a client """
 
     @classmethod
-    async def upgrade(cls, reader, writer):
-        """ Transforms the current connection into an eventsource """
+    async def init(cls, reader, writer):
+        """ Transform the current connection into an eventsource
+
+        Must use a class method as __init__ is always synchronous.
+        """
         writer.write(b"HTTP/1.1 200 OK\r\n")
         writer.write(b"Connection: keep-alive\r\n")
         writer.write(b"Content-Type: text/event-stream\r\n")
@@ -38,23 +41,13 @@ class EventSource:
         self.reader = reader
         self.writer = writer
 
-    async def retry(self, milliseconds):
-        """ Set the client retry interval
-
-        :param int milliseconds: retry interval
-        """
-        writer = self.writer
-        writer.write(f"retry: {milliseconds}")
-        writer.write(b"\r\n")
-        writer.write(b"\r\n")
-        await writer.drain()
-
-    async def send(self, data=":", id=None, event=None):
+    async def send(self, data=":", id=None, event=None, retry=None):
         """ Send event to client following the event stream format
 
         :param str data: event data to send to client. mandatory
-        :param id int: optional event id
-        :param event str: optional event type, used for dispatching at client
+        :param int id: optional event id
+        :param str event: optional event type, used for dispatching at client
+        :param int retry: retry interval in milliseconds
         """
         writer = self.writer
         if id is not None:
@@ -62,6 +55,9 @@ class EventSource:
             writer.write(b"\r\n")
         if event is not None:
             writer.write(f"event: {event}")
+            writer.write(b"\r\n")
+        if retry is not None:
+            writer.write(f"retry: {retry}")
             writer.write(b"\r\n")
         writer.write(f"data: {data}")
         writer.write(b"\r\n")

@@ -34,14 +34,7 @@ To see the async version of the server in action start *ademo.py* via the REPL a
 Yes, there are many better and functionally richer examples available on GitHub, but for learning the structure of HTTP requests and also a bit about uasyncio this code served me well. For a detailed understanding of uasyncio see the excellent GitHub pages of [Peter Hinch](https://github.com/peterhinch/micropython-async/blob/master/v3/docs/TUTORIAL.md).
 
 ### Differences between ahttpserver and httpserver
-httpserver
-- Is single threaded. I suggest to use ahttpserver whenever possible as it supports cooperative multitasking.
-- Was developed for Pycom's WiPy firmware. At the time of writing (2021) Pycom's MicroPython version is lagging behind and does not include uasyncio and f-strings which are required by ahttpserver.
-- Can be stopped gracefully by adding the line below in your code. Can come in handy during development.
-``` Python
-    raise Exception("Stop Server")
-```
-ahttpserver
+#### ahttpserver
 - Offers assistance for using server-sent event via class *EventSource*.
 ``` Python
 from ahttpserver.sse import EventSource
@@ -49,11 +42,17 @@ from ahttpserver.sse import EventSource
 @app.route("GET", "/api/greeting")
 async def api_greeting(reader, writer, request):
     # Say hello every 5 seconds
-    eventsource = await EventSource.upgrade(reader, writer)
+    eventsource = await EventSource.init(reader, writer)
     while True:
         asyncio.sleep(5)
         try:
             await eventsource.send(event="greeting", data="hello")
         except Exception as e:  # catch (a.o.) ECONNRESET when the client has disappeared
             break  # close connection#
+```
+#### httpserver
+- Was developed for Pycom's WiPy firmware. At the time of writing (2021) Pycom's MicroPython version is lagging behind and does not include uasyncio and f-strings which are required by ahttpserver.
+- Is single threaded. I suggest to use ahttpserver whenever possible as it supports cooperative multitasking.- Can be stopped gracefully by adding the line below in your code. Can come in handy during development.
+``` Python
+    raise Exception("Stop Server")
 ```

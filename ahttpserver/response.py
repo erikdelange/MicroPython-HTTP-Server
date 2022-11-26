@@ -20,11 +20,13 @@ class StatusLine:
 
 
 class ResponseHeader:
+    """ HTTP response header fields """
     CONNECTION_CLOSE = b"Connection: close\r\n"
     CONNECTION_KEEP_ALIVE = b"Connection: keep-alive\r\n"
 
 
 class MimeType:
+    """ Subset of response header fields for media type """
     TEXT_HTML = b"Content-Type: text/html\r\n"
     TEXT_EVENT_STREAM = b"Content-Type: text/event-stream\r\n"
     IMAGE_X_ICON = b"Content-Type: image/x-icon\r\n"
@@ -32,4 +34,5 @@ class MimeType:
 
 
 class CacheControl:
+    """ Subset of response header fields for cache control """
     NO_CACHE = b"Cache-Control: no-cache\r\n"
