@@ -23,12 +23,12 @@
 #
 # Handlers for the (method, path) combinations must be decorated with @route,
 # and declared before the server is started. Every handler receives a stream-
-# reader and writer and a dict with all the details from the request (see
-# url.py for exact content). The handler must construct and send a correct
-# HTTP response. To avoid typos use response components from response.py.
+# reader and writer and a object with details from the request (see url.py
+# for exact content). The handler must construct and send a correct HTTP
+# response. To avoid typos use response components from response.py.
 # When leaving the handler the connection is closed.
 # Any (method, path) combination which has not been declared using @route
-# will, when received by the server, result in a 404 http error.
+# will, when received by the server, result in a 404 HTTP error.
 #
 # Copyright 2021 (c) Erik de Lange
 # Released under MIT license
@@ -75,7 +75,16 @@ class Server:
 
             print(f"request_line {request_line} from {writer.get_extra_info('peername')[0]}")
 
-            header = dict()
+            try:
+                request = url.Request(request_line)
+            except url.InvalidRequest as e:
+                writer.write(b"HTTP/1.1 400 Bad Request\r\n")
+                writer.write(b"Connection: close\r\n")
+                writer.write(b"Content-Type: text/plain\r\n")
+                writer.write(b"\r\n")
+                await writer.drain()
+                writer.write(repr(e).encode("utf-8"))
+                return
 
             while True:
                 # read header fields and add name / value to dict 'header'
@@ -84,27 +93,12 @@ class Server:
                 if line in [b"", b"\r\n"]:
                     break
                 else:
-                    semicolon = line.find(b":")
-                    if semicolon != -1:
-                        name = line[0:semicolon]
-                        value = line[semicolon + 1:-2].lstrip()
-                        header[name] = value
-
-            try:
-                request = url.request(request_line)
-            except url.InvalidRequest as e:
-                writer.write(b"HTTP/1.1 400 Bad Request\r\n")
-                writer.write(b"Connection: close\r\n")
-                writer.write(b"Content-Type: text/html\r\n")
-                writer.write(b"\r\n")
-                await writer.drain()
-                writer.write(repr(e).encode("utf-8"))
-                return
-
-            request["header"] = header
+                    if line.find(b":") != -1:
+                        name, value = line.split(b':', 1)
+                        request.header[name] = value.strip()
 
             # search function which is connected to (method, path)
-            func = self._routes.get((request["method"], request["path"]))
+            func = self._routes.get((request.method, request.path))
             if func:
                 await func(reader, writer, request)
             else:  # no function found for (method, path) combination
