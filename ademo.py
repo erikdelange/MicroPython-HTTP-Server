@@ -1,20 +1,28 @@
+# Demo program for ahttpserver
+#
+# Start this program and use you browser to open the main page ('/').
+# The current time will be displayed and updated every second.
+# Use an API client like Insomnia or Postman to call '/api/date' or
+# 'api/stop'.
+
+import gc
+import json
 import time
 
 import uasyncio as asyncio
 
-from ahttpserver import Server, sendfile
+from ahttpserver import HTTPResponse, HTTPServer, sendfile
+from ahttpserver.sse import EventSource
 
-app = Server()
+app = HTTPServer()
 
 
 @app.route("GET", "/")
 async def root(reader, writer, request):
-    writer.write(b"HTTP/1.1 200 OK\r\n")
-    writer.write(b"Connection: close\r\n")
-    writer.write(b"Content-Type: text/html\r\n")
-    writer.write(b"\r\n")
-    await writer.drain()
+    response = HTTPResponse(200, "text/html", close=True)
+    await response.send(writer)
     await sendfile(writer, "index.html")
+    await writer.drain()
     try:
         print(1/0)
     except Exception as e:
@@ -28,43 +36,67 @@ async def root(reader, writer, request):
 
 @app.route("GET", "/favicon.ico")
 async def favicon(reader, writer, request):
-    writer.write(b"HTTP/1.1 200 OK\r\n")
-    writer.write(b"Connection: close\r\n")
-    writer.write(b"Content-Type: image/x-icon\r\n")
-    writer.write(b"\r\n")
+    response = HTTPResponse(200, "image/x-icon", close=True)
+    await response.send(writer)
     await writer.drain()
     await sendfile(writer, "favicon.ico")
 
 
 @app.route("GET", "/api/time")
-async def get_time(reader, writer, request):
-    writer.write(b"HTTP/1.1 200 OK\r\n")
-    writer.write(b"Connection: close\r\n")
-    writer.write(b"Content-Type: text/html\r\n")
-    writer.write(b"\r\n")
+async def api_time(reader, writer, request):
+    """ Setup a server sent event connection to the client updating the time every second """
+    eventsource = await EventSource.init(reader, writer)
+    while True:
+        await asyncio.sleep(1)
+        t = time.localtime()
+        try:
+            await eventsource.send(event="time", data=f"{t[3]:02d}:{t[4]:02d}:{t[5]:02d}")
+        except Exception:
+            break  # close connection
+
+
+@app.route("GET", "/api/date")
+async def api_date(reader, writer, request):
+    """ Send date as json, then cause an exception """
+    response = HTTPResponse(200, "application/json", close=True)
+    await response.send(writer)
     await writer.drain()
     t = time.localtime()
-    writer.write(f"{t[2]:02d}-{t[1]:02d}-{t[0]:04d} {t[3]:02d}:{t[4]:02d}:{t[5]:02d}")
+    sysdate = {
+        "day": f"{t[2]:02d}",
+        "month": f"{t[1]:02d}",
+        "year": f"{t[0]:04d}"
+    }
+    writer.write(json.dumps(sysdate))
+    await writer.drain()
     print(1/0)  # will be caught by global exception handler, stops server (and the rest)
 
 
 @app.route("GET", "/api/stop")
-async def stop(reader, writer, request):
+async def api_stop(reader, writer, request):
     """ Force asyncio scheduler to stop, just like ctrl-c on the repl """
-    writer.write(b"HTTP/1.1 200 OK\r\n")
-    writer.write(b"Connection: close\r\n")
-    writer.write(b"\r\n")
+    response = HTTPResponse(200, "text/plain", close=True)
+    await response.send(writer)
+    writer.write("stopping server")
     await writer.drain()
     raise (KeyboardInterrupt)
 
 
-async def hello():
+async def say_hello_task():
     """ Show system is still alive """
     count = 0
     while True:
         print("hello", count)
         count += 1
         await asyncio.sleep(60)
+
+
+async def free_memory_task():
+    """ Avoid memory fragmentation """
+    while True:
+        gc.collect()
+        gc.threshold(gc.mem_free() // 4 + gc.mem_alloc())
+        await asyncio.sleep(5)
 
 
 if __name__ == "__main__":
@@ -79,7 +111,8 @@ if __name__ == "__main__":
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(handle_exception)
 
-        loop.create_task(hello())
+        loop.create_task(say_hello_task())
+        loop.create_task(free_memory_task())
         loop.create_task(app.start())
 
         loop.run_forever()

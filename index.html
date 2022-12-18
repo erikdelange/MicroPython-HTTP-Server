@@ -6,5 +6,21 @@
     </head>
     <body>
         <h1> Ahllo </h1>
+        <p id="time"> hh:mm:ss </p>
+        <script>
+            window.onload = function() {
+                // Setup time event listener
+                const timeEventSource = new EventSource("/api/time");
+
+                timeEventSource.addEventListener("time", (event) => {
+                    document.getElementById("time").innerHTML = event.data;
+                });
+
+                timeEventSource.onerror = (event) => {
+                    console.log(timeEventSource.url, "error");
+                    timeEventSource.close();
+                };
+            }
+        </script>
     </body>
 </html>

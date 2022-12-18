@@ -2,4 +2,5 @@
 # Released under MIT license
 
 from .sendfile import sendfile
-from .server import Server
+from .server import HTTPServer
+from .response import HTTPResponse

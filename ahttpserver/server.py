@@ -4,17 +4,14 @@
 #
 #   import uasyncio as asyncio
 #
-#   from httpserver import sendfile, Server
+#   from ahttpserver import HTTPServer, sendfile
 #
-#   app = Server()
+#   app = HTTPServer()
 #
 #   @app.route("GET", "/")
 #   async def root(reader, writer, request):
-#       writer.write(b"HTTP/1.1 200 OK\r\n")
-#       writer.write(b"Connection: close\r\n")
-#       writer.write(b"Content-Type: text/html\r\n")
-#       writer.write(b"\r\n")
-#       await writer.drain()
+#       response = HTTPResponse(200, "text/html", close=True)
+#       await response.send(writer)
 #       await sendfile(writer, "index.html")
 #
 #   loop = asyncio.get_event_loop()
@@ -37,14 +34,15 @@ import errno
 
 import uasyncio as asyncio
 
-import ahttpserver.url as url
+from .response import HTTPResponse
+from .url import HTTPRequest, InvalidRequest
 
 
 class HTTPServerError(Exception):
     pass
 
 
-class Server:
+class HTTPServer:
 
     def __init__(self, host="0.0.0.0", port=80, backlog=5, timeout=30):
         self.host = host
@@ -76,13 +74,14 @@ class Server:
             print(f"request_line {request_line} from {writer.get_extra_info('peername')[0]}")
 
             try:
-                request = url.Request(request_line)
-            except url.InvalidRequest as e:
-                writer.write(b"HTTP/1.1 400 Bad Request\r\n")
-                writer.write(b"Connection: close\r\n")
-                writer.write(b"Content-Type: text/plain\r\n")
-                writer.write(b"\r\n")
-                await writer.drain()
+                request = HTTPRequest(request_line)
+            except InvalidRequest as e:
+                while True:
+                    # read and discard header fields
+                    if await asyncio.wait_for(reader.readline(), self.timeout) in [b"", b"\r\n"]:
+                        break
+                response = HTTPResponse(400, "text/plain", close=True)
+                await response.send(writer)
                 writer.write(repr(e).encode("utf-8"))
                 return
 
@@ -102,9 +101,8 @@ class Server:
             if func:
                 await func(reader, writer, request)
             else:  # no function found for (method, path) combination
-                writer.write(b"HTTP/1.1 404 Not Found\r\n")
-                writer.write(b"Connection: close\r\n")
-                writer.write(b"\r\n")
+                response = HTTPResponse(404)
+                await response.send(writer)
 
         except asyncio.TimeoutError:
             pass

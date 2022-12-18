@@ -27,7 +27,7 @@ class InvalidRequest(Exception):
     pass
 
 
-class Request:
+class HTTPRequest:
 
     def __init__(self, request_line) -> None:
         """ Separate an HTTP request line in its elements.
@@ -59,11 +59,12 @@ class Request:
 
         if self.url.find("?") != -1:
             self.path, self.query = self.url.split("?", 1)
+            self.parameters = query(self.query)
         else:
             self.path = self.url
             self.query = ""
+            self.parameters = dict()
 
-        self.parameters = query(self.query)
         self.header = dict()
 
 
@@ -106,7 +107,7 @@ def query(query):
 #     for line in request_lines:
 #         print("request line", line)
 #         try:
-#             request = Request(line)
+#             request = HTTPRequest(line)
 #             print("method:", request.method)
 #             print("url:", request.url)
 #             print("version:", request.version)

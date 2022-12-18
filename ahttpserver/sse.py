@@ -20,6 +20,9 @@
 # Copyright 2022 (c) Erik de Lange
 # Released under MIT license
 
+from .response import HTTPResponse
+
+
 class EventSource:
     """ Helper class for sending server sent events to a client """
 
@@ -29,12 +32,8 @@ class EventSource:
 
         Must use a class method as __init__ is always synchronous.
         """
-        writer.write(b"HTTP/1.1 200 OK\r\n")
-        writer.write(b"Connection: keep-alive\r\n")
-        writer.write(b"Content-Type: text/event-stream\r\n")
-        writer.write(b"Cache-Control: no-cache\r\n")
-        writer.write(b"\r\n")
-        await writer.drain()
+        response = HTTPResponse(200, "text/event-stream", close=False, header={"Cache-Control": "no-cache"})
+        await response.send(writer)
         return cls(reader, writer)
 
     def __init__(self, reader, writer):
@@ -51,15 +50,10 @@ class EventSource:
         """
         writer = self.writer
         if id is not None:
-            writer.write(f"id: {id}")
-            writer.write(b"\r\n")
+            writer.write(f"id: {id}\n")
         if event is not None:
-            writer.write(f"event: {event}")
-            writer.write(b"\r\n")
+            writer.write(f"event: {event}\n")
         if retry is not None:
-            writer.write(f"retry: {retry}")
-            writer.write(b"\r\n")
-        writer.write(f"data: {data}")
-        writer.write(b"\r\n")
-        writer.write(b"\r\n")
+            writer.write(f"retry: {retry}\n")
+        writer.write(f"data: {data}\n\n")
         await writer.drain()
