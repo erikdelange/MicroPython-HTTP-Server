@@ -45,7 +45,7 @@ async def favicon(reader, writer, request):
 @app.route("GET", "/api/time")
 async def api_time(reader, writer, request):
     """ Setup a server sent event connection to the client updating the time every second """
-    eventsource = await EventSource.init(reader, writer)
+    eventsource = await EventSource(reader, writer)
     while True:
         await asyncio.sleep(1)
         t = time.localtime()

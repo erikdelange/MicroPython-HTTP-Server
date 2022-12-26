@@ -39,7 +39,7 @@ from ahttpserver.sse import EventSource
 @app.route("GET", "/api/greeting")
 async def api_greeting(reader, writer, request):
     # Say hello every 5 seconds
-    eventsource = await EventSource.init(reader, writer)
+    eventsource = await EventSource(reader, writer)
     while True:
         asyncio.sleep(5)
         try:
