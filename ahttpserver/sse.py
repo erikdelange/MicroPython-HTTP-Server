@@ -9,7 +9,7 @@
 #   @app.route("GET", "/api/greeting")
 #   async def api_greeting(reader, writer, request):
 #       # Say hello every 5 seconds
-#       eventsource = await EventSource.init(reader, writer)
+#       eventsource = await EventSource(reader, writer)
 #       while True:
 #           asyncio.sleep(5)
 #           try:
@@ -24,21 +24,22 @@ from .response import HTTPResponse
 
 
 class EventSource:
-    """ Helper class for sending server sent events to a client """
-
-    @classmethod
-    async def init(cls, reader, writer):
-        """ Transform the current connection into an eventsource
-
-        Must use a class method as __init__ is always synchronous.
-        """
-        response = HTTPResponse(200, "text/event-stream", close=False, header={"Cache-Control": "no-cache"})
-        await response.send(writer)
-        return cls(reader, writer)
+    """ Open and use an event stream connection to the client """
 
     def __init__(self, reader, writer):
         self.reader = reader
         self.writer = writer
+
+    def __await__(self):
+        async def connect():
+            """ Setup an event stream connection """
+            response = HTTPResponse(200, "text/event-stream", close=False, header={"Cache-Control": "no-cache"})
+            await response.send(self.writer)
+            return self
+
+        return connect()
+
+    __iter__ = __await__
 
     async def send(self, data=":", id=None, event=None, retry=None):
         """ Send event to client following the event stream format
