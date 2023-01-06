@@ -23,7 +23,7 @@ async def root(reader, writer, request):
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.create_task(app.start())
+    asyncio.create_task(app.start())
     loop.run_forever()
 ```
 To see the async version of the server in action start *ademo.py* via the REPL. Open the main web-page in your browser and/or fire HTTP requests at it via Postman, Insomnia or similar. The demo code includes two divide-by-zero exceptions so you can see how they are handled.
@@ -49,7 +49,3 @@ async def api_greeting(reader, writer, request):
 ```
 #### httpserver
 - Was developed for Pycom's WiPy firmware. Only handles a single request at a time as at the time of writing (2021) Pycom's MicroPython version does not include uasyncio which is required by ahttpserver. I suggest to use ahttpserver whenever possible as it supports cooperative multitasking.
-- Can be stopped gracefully by adding the line below in your code. Can come in handy during development.
-``` Python
-    raise Exception("Stop Server")
-```
