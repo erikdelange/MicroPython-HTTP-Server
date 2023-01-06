@@ -1,32 +1,27 @@
-from httpserver import sendfile, Server
+from httpserver import HTTPResponse, HTTPServer, sendfile
 
-app = Server(timeout=10)
+app = HTTPServer(timeout=10)
 
 
 @app.route("GET", "/")
 def root(conn, request):
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: text/html\r\n")
-    conn.write(b"\r\n")
+    response = HTTPResponse(200, "text/html")
+    response.send(conn)
     sendfile(conn, "index.html")
 
 
 @app.route("GET", "/favicon.ico")
 def favicon(conn, request):
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"Content-Type: image/x-icon\r\n")
-    conn.write(b"\r\n")
+    response = HTTPResponse(200, "image/x-icon")
+    response.send(conn)
     sendfile(conn, "favicon.ico")
 
 
 @app.route("GET", "/api/stop")
 def stop(conn, request):
-    conn.write(b"HTTP/1.1 200 OK\r\n")
-    conn.write(b"Connection: close\r\n")
-    conn.write(b"\r\n")
-    raise Exception("Stop Server")
+    response = HTTPResponse(200)
+    response.send(conn)
+    raise KeyboardInterrupt
 
 
 if __name__ == "__main__":

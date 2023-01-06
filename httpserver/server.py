@@ -2,41 +2,40 @@
 #
 # Usage:
 #
-#   from httpserver import senffile, Server, CONNECTION_CLOSE
+#   from httpserver import HTTPServer, sendfile, CONNECTION_CLOSE
 #
-#   app = Server()
+#   app = HTTPServer()
 
 #   @app.route("GET", "/")
 #   def root(conn, request):
-#       conn.write(b"HTTP/1.1 200 OK\r\n")
-#       conn.write(b"Connection: close\r\n")
-#       conn.write(b"Content-Type: text/html\r\n")
-#       conn.write(b"\r\n")
+#       response = HTTPResponse(200, "text/html", close=True)
+#       response.send(conn)
 #       sendfile(conn, "index.html")
-#       return CONNECTION_CLOSE
 #
-#   app.run()
+#   app.start()
 #
-# Handlers for the (method, path) combinations must be decrorated with
-# @route, and declared before the server is started (via a call to run).
-# Every handler receives the connection socket and a dict with all the
-# details from the request (see url.py for exact content).
-# When leaving the handler the connection is expected to be closed,
-# unless the return code of the handler is CONNECTION_KEEP_ALIVE.
-# Any combination of (method, path) which has not been declared using
-# @route will, when received by the server, result in a 404 HTTP error.
-# The server cannot be stopped unless an alert is raised. If a Handler
-# wants to stop the server it should use 'raise Exception("Stop Server")'.
-# Only this exception will cause a reasonably graceful exit.
+# Handlers for the (method, path) combinations must be decorated with @route,
+# and declared before the server is started (via a call to start).
+# Every handler receives the connection socket and an object with all the
+# details from the request (see url.py for exact content). The handler must
+# construct and send a correct HTTP response. To avoid typos use the
+# HTTPResponse component from response.py.
+# When leaving the handler the connection will be closed, unless the return
+# code of the handler is CONNECTION_KEEP_ALIVE.
+# Any (method, path) combination which has not been declared using @route
+# will, when received by the server, result in a 404 HTTP error.
+# The server cannot be stopped unless an alert is raised. A KeyboardInterrupt
+# will cause a controlled exit.
 #
 # Copyright 2021 (c) Erik de Lange
 # Released under MIT license
 
-import socket
 import errno
+import socket
+from micropython import const
 
-import httpserver.url as url
-
+from .response import HTTPResponse
+from .url import HTTPRequest, InvalidRequest
 
 CONNECTION_CLOSE = const(0)
 CONNECTION_KEEP_ALIVE = const(1)
@@ -46,7 +45,7 @@ class HTTPServerError(Exception):
     pass
 
 
-class Server:
+class HTTPServer:
 
     def __init__(self, host="0.0.0.0", port=80, backlog=5, timeout=30):
         self.host = host
@@ -59,7 +58,7 @@ class Server:
         """ Decorator which connects method and path to the decorated function. """
 
         if (method, path) in self._routes:
-            raise HTTPServerError("route{} already registered".format((method, path)))
+            raise HTTPServerError(f"route{(method, path)} already registered")
 
         def wrapper(function):
             self._routes[(method, path)] = function
@@ -67,17 +66,17 @@ class Server:
         return wrapper
 
     def start(self):
-        serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        serversocket.bind((self.host, self.port))
-        serversocket.listen(self.backlog)
+        server.bind((self.host, self.port))
+        server.listen(self.backlog)
 
-        print("HTTP server started on {}:{}".format(self.host, self.port))
+        print(f"HTTP server started on {self.host}:{self.port}")
 
         while True:
             try:
-                conn, addr = serversocket.accept()
+                conn, addr = server.accept()
                 conn.settimeout(self.timeout)
 
                 request_line = conn.readline()
@@ -85,67 +84,64 @@ class Server:
                     raise OSError(errno.ETIMEDOUT)
 
                 if request_line in [b"", b"\r\n"]:
-                    print("empty request line from", addr[0])
+                    print(f"empty request line from {addr[0]}")
                     conn.close()
                     continue
 
-                print("request line", request_line, "from", addr[0])
+                print(f"request line {request_line} from {addr[0]}")
 
-                header = dict()
+                try:
+                    request = HTTPRequest(request_line)
+                except InvalidRequest as e:
+                    while True:
+                        # read and discard header fields
+                        line = conn.readline()
+                        if line is None:
+                            raise OSError(errno.ETIMEDOUT)
+                        if line in [b"", b"\r\n"]:
+                            break
+                    response = HTTPResponse(400, "text/plain", close=True)
+                    response.send(conn)
+                    conn.write(repr(e).encode("utf-8"))
+                    conn.close()
+                    continue
 
                 while True:
                     # read header fields and add name / value to dict 'header'
                     line = conn.readline()
-                    if request_line is None:
+                    if line is None:
                         raise OSError(errno.ETIMEDOUT)
 
                     if line in [b"", b"\r\n"]:
                         break
                     else:
-                        semicolon = line.find(b":")
-                        if semicolon != -1:
-                            name = line[0:semicolon].decode("utf-8")
-                            value = line[semicolon + 1:-2].lstrip().decode("utf-8")
-                            header[name] = value
-
-                try:
-                    request = url.request(request_line)
-                except url.InvalidRequest as e:
-                    conn.write(b"HTTP/1.1 400 Bad Request\r\n")
-                    conn.write(b"Connection: close\r\n")
-                    conn.write("Content-Type: text/html\r\n")
-                    conn.write(b"\r\n")
-                    conn.write(bytes(repr(e), "utf-8"))
-                    conn.close()
-                    continue
-
-                request["header"] = header
+                        if line.find(b":") != 1:
+                            name, value = line.split(b':', 1)
+                            request.header[name] = value.strip()
 
                 # search function which is connected to (method, path)
-                func = self._routes.get((request["method"], request["path"]))
+                func = self._routes.get((request.method, request.path))
                 if func:
                     if func(conn, request) != CONNECTION_KEEP_ALIVE:
                         # close connection unless explicitly kept alive
                         conn.close()
                 else:  # no function found for (method, path) combination
-                    conn.write(b"HTTP/1.1 404 Not Found\r\n")
-                    conn.write(b"Connection: close\r\n")
-                    conn.write(b"\r\n")
+                    response = HTTPResponse(404)
+                    response.send(conn)
                     conn.close()
 
+            except KeyboardInterrupt:  # will stop the server
+                conn.close()
+                break
             except Exception as e:
                 conn.close()
-                if e.args[0] == errno.ETIMEDOUT:  # communication timeout
+                if type(e) is OSError and e.errno == errno.ETIMEDOUT:  # communication timeout
                     pass
-                elif e.args[0] == errno.ECONNRESET:  # client reset the connection
+                elif type(e) is OSError and e.errno == errno.ECONNRESET:  # client reset the connection
                     pass
-                elif e.args[0] == "Stop Server":  # magic exception to stop server
-                    break
                 else:
-                    serversocket.close()
-                    serversocket = None
+                    server.close()
                     raise e
 
-        serversocket.close()
-        serversocket = None
+        server.close()
         print("HTTP server stopped")
