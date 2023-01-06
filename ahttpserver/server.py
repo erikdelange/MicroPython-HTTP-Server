@@ -4,7 +4,7 @@
 #
 #   import uasyncio as asyncio
 #
-#   from ahttpserver import HTTPServer, sendfile
+#   from ahttpserver import HTTPResponse, HTTPServer, sendfile
 #
 #   app = HTTPServer()
 #
@@ -20,9 +20,9 @@
 #
 # Handlers for the (method, path) combinations must be decorated with @route,
 # and declared before the server is started. Every handler receives a stream-
-# reader and writer and a object with details from the request (see url.py
+# reader and writer and an object with details from the request (see url.py
 # for exact content). The handler must construct and send a correct HTTP
-# response. To avoid typos use response components from response.py.
+# response. To avoid typos use the HTTPResponse component from response.py.
 # When leaving the handler the connection is closed.
 # Any (method, path) combination which has not been declared using @route
 # will, when received by the server, result in a 404 HTTP error.
@@ -107,7 +107,7 @@ class HTTPServer:
         except asyncio.TimeoutError:
             pass
         except Exception as e:
-            if e.args[0] == errno.ECONNRESET:  # connection reset by client
+            if type(e) is OSError and e.errno == errno.ECONNRESET:  # connection reset by client
                 pass
             else:
                 raise e
@@ -117,7 +117,7 @@ class HTTPServer:
             await writer.wait_closed()
 
     async def start(self):
-        print(f'HTTP server started on {self.host}:{self.port}')
+        print(f"HTTP server started on {self.host}:{self.port}")
         self._server = await asyncio.start_server(self._handle_request, self.host, self.port, self.backlog)
 
     async def stop(self):
