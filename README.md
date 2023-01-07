@@ -26,13 +26,8 @@ if __name__ == "__main__":
     asyncio.create_task(app.start())
     loop.run_forever()
 ```
-To see the async version of the server in action start *ademo.py* via the REPL. Open the main web-page in your browser and/or fire HTTP requests at it via Postman, Insomnia or similar. The demo code includes two divide-by-zero exceptions so you can see how they are handled.
+To see the async version of the server in action start *ademo.py* via the REPL. Open the main web-page in your browser and/or fire HTTP requests at it via Postman, Insomnia or similar. The demo code includes two divide-by-zero exceptions so you can see how they are handled. The demo also includes a server-sent event where the route handler task stays alive.
 
-Yes, there are many better and functionally richer examples available on GitHub, but for learning the structure of HTTP requests and responses, and also a bit about uasyncio this code served me well. For a detailed understanding of uasyncio see the excellent GitHub pages of [Peter Hinch](https://github.com/peterhinch/micropython-async/blob/master/v3/docs/TUTORIAL.md).
-
-### Differences between ahttpserver and httpserver
-#### ahttpserver
-- Offers assistance for using server-sent events via class *EventSource*.
 ``` Python
 from ahttpserver.sse import EventSource
 
@@ -47,5 +42,11 @@ async def api_greeting(reader, writer, request):
         except Exception as e:  # catch (a.o.) ECONNRESET when the client has disappeared
             break  # close connection#
 ```
+
+Yes, there are many better and functionally richer examples available on GitHub, but for learning the structure of HTTP requests and responses, and also a bit about uasyncio this code served me well. For a detailed understanding of uasyncio see the excellent GitHub pages of [Peter Hinch](https://github.com/peterhinch/micropython-async/blob/master/v3/docs/TUTORIAL.md).
+
+### Differences between ahttpserver and httpserver
+#### ahttpserver
+- Based on asyncio, making it easy to achieve concurrency.
 #### httpserver
-- Was developed for Pycom's WiPy firmware. Only handles a single request at a time as at the time of writing (2021) Pycom's MicroPython version does not include uasyncio which is required by ahttpserver. I suggest to use ahttpserver whenever possible as it supports cooperative multitasking.
+- Was developed for Pycom's WiPy firmware. Only handles a single request at a time as at the time of writing (2021) Pycom's MicroPython version does not include uasyncio which is required by ahttpserver. Threading must be used when tasks must stay alive. See demo.py for an example of using a thread for server-sent events.
